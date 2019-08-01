@@ -33,7 +33,7 @@ defmodule BroadwayRabbitMQ.ProducerTest do
 
     @impl true
     def init(opts) do
-      {:ok, opts[:queue], opts}
+      {:ok, opts}
     end
 
     @impl true
@@ -127,7 +127,7 @@ defmodule BroadwayRabbitMQ.ProducerTest do
   test "raise an ArgumentError with proper message when client options are invalid" do
     assert_raise(
       ArgumentError,
-      "invalid options given to BroadwayRabbitMQ.AmqpClient.init/1, expected :queue to be a non empty string, got: nil",
+      "invalid options given to BroadwayRabbitMQ.AmqpClient.init/1, expected :queue to be a string, got: nil",
       fn ->
         BroadwayRabbitMQ.Producer.init(queue: nil)
       end
@@ -343,6 +343,24 @@ defmodule BroadwayRabbitMQ.ProducerTest do
                deliver_messages(broadway, [:break_conn])
                refute_receive {:ack, :break_conn}
              end) =~ "(EXIT) no process: the process is not alive"
+
+      stop_broadway(broadway)
+    end
+  end
+
+  describe "handle consumer cancellation" do
+    test "open a new connection/channel and keep consuming messages" do
+      {:ok, broadway} = start_broadway()
+      assert_receive {:setup_channel, :ok, channel_1}
+
+      producer = get_producer(broadway)
+
+      send(producer, {:basic_cancel, %{delievery_tag: "my-delivery-tag"}})
+
+      assert_receive {:setup_channel, :ok, channel_2}
+
+      assert channel_1.pid != channel_2.pid
+      assert channel_1.conn.pid != channel_2.conn.pid
 
       stop_broadway(broadway)
     end
